@@ -8,10 +8,6 @@
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-  <style>
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-12">
 
@@ -35,9 +31,9 @@
       <div class="flex flex-col sm:flex-row justify-between items-center border-b pb-3 mb-4 gap-3">
         <label class="font-bold text-slate-700">選擇目前操作組別：</label>
         <div class="flex gap-2">
-          <button onclick="switchTeam(1)" id="btn-team-1" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition border">第 1 組</button>
-          <button onclick="switchTeam(2)" id="btn-team-2" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition border">第 2 組</button>
-          <button onclick="switchTeam(3)" id="btn-team-3" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition border">第 3 組</button>
+          <button onclick="switchTeam(1)" id="btn-team-1" class="px-4 py-1.5 rounded-lg text-sm font-semibold border">第 1 組</button>
+          <button onclick="switchTeam(2)" id="btn-team-2" class="px-4 py-1.5 rounded-lg text-sm font-semibold border">第 2 組</button>
+          <button onclick="switchTeam(3)" id="btn-team-3" class="px-4 py-1.5 rounded-lg text-sm font-semibold border">第 3 組</button>
         </div>
       </div>
 
@@ -80,8 +76,9 @@
 
   </main>
 
+  <!-- 完整的 JavaScript 邏輯 -->
   <script>
-    // ⚠️ 請在此處填入你在 Firebase 複製的真實 Config
+    // ⚠️ 請填入你的真實 Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyCCQcjbqig5_QvJafTtE9mxcoMS3tOFi2s",
       authDomain: "foodhuntcal.firebaseapp.com",
@@ -93,8 +90,8 @@
 
     let db = null;
     let isCloudActive = false;
-
     let currentTeam = 1;
+
     let store = {
       team1: { food: {}, city: {} },
       team2: { food: {}, city: {} },
@@ -137,8 +134,37 @@
       { id: "arch", title: "海鮮街牌坊", basePts: 100 }
     ];
 
+    function switchTab(tab) {
+      if (tab === 'food') {
+        document.getElementById('tab-food').classList.remove('hidden');
+        document.getElementById('tab-city').classList.add('hidden');
+        document.getElementById('tab-btn-food').className = "py-2.5 px-4 border-b-2 border-indigo-600 text-indigo-600 font-bold";
+        document.getElementById('tab-btn-city').className = "py-2.5 px-4 border-b-2 border-transparent text-slate-500";
+      } else {
+        document.getElementById('tab-food').classList.add('hidden');
+        document.getElementById('tab-city').classList.remove('hidden');
+        document.getElementById('tab-btn-city').className = "py-2.5 px-4 border-b-2 border-indigo-600 text-indigo-600 font-bold";
+        document.getElementById('tab-btn-food').className = "py-2.5 px-4 border-b-2 border-transparent text-slate-500";
+      }
+    }
+
+    function switchTeam(team) {
+      currentTeam = team;
+      [1, 2, 3].forEach(t => {
+        const btn = document.getElementById(`btn-team-${t}`);
+        if (t === team) {
+          btn.className = "px-4 py-1.5 rounded-lg text-sm font-bold bg-indigo-600 text-white shadow";
+        } else {
+          btn.className = "px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-100 text-slate-600 border border-slate-300";
+        }
+      });
+      renderTasks();
+    }
+
     function init() {
-      // 嘗試初始化 Firebase
+      switchTeam(1);
+      renderTasks();
+
       try {
         if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_FIREBASE_API_KEY") {
           firebase.initializeApp(firebaseConfig);
@@ -150,12 +176,8 @@
         isCloudActive = false;
       }
 
-      switchTeam(1);
-      
       if (isCloudActive) {
-        // 設置 3 秒防卡死定時器
         const timer = setTimeout(() => {
-          console.warn("雲端連線逾時，切換至本地模式");
           fallbackToLocal();
         }, 3000);
 
@@ -166,3 +188,237 @@
             store = doc.data();
             updateAllScoresUI();
             renderTasks();
+          } else {
+            saveData();
+          }
+        }, err => {
+          clearTimeout(timer);
+          fallbackToLocal();
+        });
+      } else {
+        fallbackToLocal();
+      }
+    }
+
+    function fallbackToLocal() {
+      isCloudActive = false;
+      const saved = localStorage.getItem("saikung_foodhunt_data");
+      if (saved) store = JSON.parse(saved);
+      updateStatusUI(false);
+      updateAllScoresUI();
+      renderTasks();
+    }
+
+    function updateStatusUI(isCloud) {
+      const el = document.getElementById("sync-status");
+      if (isCloud) {
+        el.className = "text-xs px-2.5 py-1 rounded-full bg-emerald-500 text-white font-semibold";
+        el.innerText = "☁️ 實時雲端同步中";
+      } else {
+        el.className = "text-xs px-2.5 py-1 rounded-full bg-amber-500 text-white font-semibold";
+        el.innerText = "💾 單機自動保存中";
+      }
+    }
+
+    function saveData() {
+      if (isCloudActive) {
+        db.collection("events").doc("saikung2026").set(store);
+      } else {
+        localStorage.setItem("saikung_foodhunt_data", JSON.stringify(store));
+        updateAllScoresUI();
+      }
+    }
+
+    function renderTasks() {
+      const foodContainer = document.getElementById("food-tasks-list");
+      if (!foodContainer) return;
+      foodContainer.innerHTML = foodTasks.map(t => {
+        const data = ((store[`team${currentTeam}`] || {}).food || {})[t.id] || {};
+        return `
+          <div class="border border-slate-200 rounded-xl p-4 bg-white shadow-sm space-y-2">
+            <div class="flex justify-between items-start">
+              <div>
+                <h3 class="font-bold text-slate-800">${t.title}</h3>
+                <p class="text-xs text-indigo-600 font-medium">推薦：${t.rec} (${t.price})</p>
+              </div>
+              <label class="flex items-center space-x-2 bg-slate-50 border px-3 py-1.5 rounded-lg cursor-pointer">
+                <input type="checkbox" ${data.completed ? 'checked' : ''} onchange="toggleTask('food', '${t.id}', 'completed', this.checked)" class="w-4 h-4 text-indigo-600 rounded">
+                <span class="text-xs font-bold text-slate-700">完成 (+${t.basePts})</span>
+              </label>
+            </div>
+            ${renderFoodCustomInputs(t, data)}
+          </div>
+        `;
+      }).join('');
+
+      const cityContainer = document.getElementById("city-tasks-list");
+      if (!cityContainer) return;
+      cityContainer.innerHTML = cityTasks.map(t => {
+        const data = ((store[`team${currentTeam}`] || {}).city || {})[t.id] || {};
+        return `
+          <div class="border border-slate-200 rounded-xl p-3 bg-white shadow-sm flex justify-between items-center">
+            <div>
+              <div class="font-bold text-slate-800 text-sm">${t.title}</div>
+              <div class="text-xs text-slate-500">基礎分: ${t.basePts} 分</div>
+              ${t.extraDesc ? `<div class="text-xs text-amber-600 font-medium">${t.extraDesc}</div>` : ''}
+            </div>
+            <div class="flex items-center gap-3">
+              ${t.allowMultiple ? `
+                <div class="flex items-center space-x-1 border rounded-lg overflow-hidden">
+                  <button onclick="changeCount('${t.id}', -1)" class="px-2.5 py-1 bg-slate-100 font-bold text-slate-600">-</button>
+                  <span class="px-2 font-bold text-sm text-indigo-600">${data.count || 0}</span>
+                  <button onclick="changeCount('${t.id}', 1)" class="px-2.5 py-1 bg-slate-100 font-bold text-slate-600">+</button>
+                </div>
+              ` : `
+                <input type="checkbox" ${data.completed ? 'checked' : ''} onchange="toggleTask('city', '${t.id}', 'completed', this.checked)" class="w-5 h-5 text-indigo-600 rounded">
+              `}
+              ${t.hasExtraCheck ? `
+                <label class="text-xs flex items-center space-x-1 bg-amber-50 text-amber-800 border border-amber-200 px-2 py-1 rounded cursor-pointer">
+                  <input type="checkbox" ${data.extra ? 'checked' : ''} onchange="toggleTask('city', '${t.id}', 'extra', this.checked)" class="w-3.5 h-3.5">
+                  <span>加分項</span>
+                </label>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderFoodCustomInputs(t, data) {
+      let html = '';
+      if (t.hasExtraCheck) {
+        html += `
+          <label class="flex items-center space-x-2 text-xs text-amber-800 bg-amber-50 p-2 rounded border border-amber-200 cursor-pointer">
+            <input type="checkbox" ${data.extra ? 'checked' : ''} onchange="toggleTask('food', '${t.id}', 'extra', this.checked)" class="w-4 h-4 text-amber-600 rounded">
+            <span>${t.extraDesc}</span>
+          </label>
+        `;
+      }
+      if (t.customType === 'chill') {
+        html += `
+          <div class="text-xs space-y-1 bg-slate-50 p-2 rounded border">
+            <div>額外加分：每快 449 秒 1 分鐘吃完 +100分 (最多2次)</div>
+            <select onchange="setTaskVal('food', '${t.id}', 'chillExtra', this.value)" class="border rounded p-1 text-xs">
+              <option value="0" ${data.chillExtra == 0 ? 'selected' : ''}>無額外加分</option>
+              <option value="1" ${data.chillExtra == 1 ? 'selected' : ''}>快 1 分鐘 (+100)</option>
+              <option value="2" ${data.chillExtra == 2 ? 'selected' : ''}>快 2 分鐘或以上 (+200)</option>
+            </select>
+          </div>
+        `;
+      }
+      if (t.customType === 'yogurt') {
+        html += `
+          <div class="text-xs space-y-1 bg-slate-50 p-2 rounded border">
+            <div>乳酪配料顏色數（超過3種每多1種+50分，最多2次）：</div>
+            <select onchange="setTaskVal('food', '${t.id}', 'yogurtExtra', this.value)" class="border rounded p-1 text-xs">
+              <option value="0" ${data.yogurtExtra == 0 ? 'selected' : ''}>3種或以下 (無加分)</option>
+              <option value="1" ${data.yogurtExtra == 1 ? 'selected' : ''}>4種顏色 (+50分)</option>
+              <option value="2" ${data.yogurtExtra == 2 ? 'selected' : ''}>5種顏色或以上 (+100分)</option>
+            </select>
+          </div>
+        `;
+      }
+      if (t.customType === 'french') {
+        html += `
+          <div class="text-xs space-y-1 bg-slate-50 p-2 rounded border">
+            <label>法語發音準確度 (超過50%後每 1% +10分)：</label>
+            <div class="flex items-center space-x-2">
+              <input type="number" min="0" max="100" value="${data.frenchAcc || 0}" onchange="setTaskVal('food', '${t.id}', 'frenchAcc', this.value)" class="w-16 border rounded p-1 text-xs">
+              <span>%</span>
+            </div>
+          </div>
+        `;
+      }
+      if (t.customType === 'offbeat') {
+        html += `
+          <div class="text-xs space-y-1 bg-slate-50 p-2 rounded border">
+            <div>數拍子挑戰：全組額外成功人數 (每多一人 +100分)：</div>
+            <input type="number" min="0" max="10" value="${data.offbeatCount || 0}" onchange="setTaskVal('food', '${t.id}', 'offbeatCount', this.value)" class="w-16 border rounded p-1 text-xs">
+          </div>
+        `;
+      }
+      if (t.customType === 'bakery') {
+        html += `
+          <div class="text-xs space-y-1 bg-slate-50 p-2 rounded border">
+            <div>額外嘗試推薦食品並給出1分鐘食評（每多一種 +100分，最多3次）：</div>
+            <input type="number" min="0" max="3" value="${data.bakeryCount || 0}" onchange="setTaskVal('food', '${t.id}', 'bakeryCount', this.value)" class="w-16 border rounded p-1 text-xs">
+          </div>
+        `;
+      }
+      return html;
+    }
+
+    function toggleTask(type, id, key, checked) {
+      const teamKey = `team${currentTeam}`;
+      if (!store[teamKey][type]) store[teamKey][type] = {};
+      if (!store[teamKey][type][id]) store[teamKey][type][id] = {};
+      store[teamKey][type][id][key] = checked;
+      saveData();
+    }
+
+    function setTaskVal(type, id, key, val) {
+      const teamKey = `team${currentTeam}`;
+      if (!store[teamKey][type]) store[teamKey][type] = {};
+      if (!store[teamKey][type][id]) store[teamKey][type][id] = {};
+      store[teamKey][type][id][key] = Number(val);
+      saveData();
+    }
+
+    function changeCount(id, delta) {
+      const teamKey = `team${currentTeam}`;
+      if (!store[teamKey].city) store[teamKey].city = {};
+      if (!store[teamKey].city[id]) store[teamKey].city[id] = { count: 0 };
+      let curr = store[teamKey].city[id].count || 0;
+      curr = Math.max(0, curr + delta);
+      store[teamKey].city[id].count = curr;
+      renderTasks();
+      saveData();
+    }
+
+    function calcTeamScore(teamNum) {
+      const data = store[`team${teamNum}`] || { food: {}, city: {} };
+      let total = 0;
+
+      foodTasks.forEach(t => {
+        const item = (data.food || {})[t.id];
+        if (item && item.completed) {
+          total += t.basePts;
+          if (t.hasExtraCheck && item.extra) total += (t.id === 'paisano' ? 300 : 100);
+          if (t.customType === 'chill') total += (item.chillExtra || 0) * 100;
+          if (t.customType === 'yogurt') total += (item.yogurtExtra || 0) * 50;
+          if (t.customType === 'french' && item.frenchAcc > 50) {
+            total += Math.floor(item.frenchAcc - 50) * 10;
+          }
+          if (t.customType === 'offbeat') total += (item.offbeatCount || 0) * 100;
+          if (t.customType === 'bakery') total += Math.min(3, item.bakeryCount || 0) * 100;
+        }
+      });
+
+      cityTasks.forEach(t => {
+        const item = (data.city || {})[t.id];
+        if (item) {
+          if (t.allowMultiple) {
+            total += (item.count || 0) * t.basePts;
+          } else if (item.completed) {
+            total += t.basePts;
+            if (t.hasExtraCheck && item.extra) {
+              total += (t.id === 'seafood_live' ? 400 : 200);
+            }
+          }
+        }
+      });
+
+      return total;
+    }
+
+    function updateAllScoresUI() {
+      [1, 2, 3].forEach(t => {
+        const el = document.getElementById(`score-team-${t}`);
+        if (el) el.innerText = `${calcTeamScore(t)} 分`;
+      });
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
